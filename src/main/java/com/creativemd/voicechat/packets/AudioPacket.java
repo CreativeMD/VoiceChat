@@ -99,8 +99,7 @@ public class AudioPacket extends CreativeCorePacket{
         	data[i] = (byte)((rand.nextDouble()-0.5) * Byte.MAX_VALUE);*/
     	
     	//short[] shortarray = new short[data.length/VoiceChat.format.getFrameSize()]; //<-- Is this data.length/2 ok? don't think so, was just a random idea
-    	short[] shortarray = new short[data.length/2];
-    	ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(shortarray);
+    	
     	
     	/*Noise:
     	shortarray = new short[8000];
@@ -120,15 +119,48 @@ public class AudioPacket extends CreativeCorePacket{
     	// plus delay
     	//Old: long whenInMillis = timestamp - AudioConsumer.STARTED_AT + 500; //wait a second couldn't we just do this?
     	//long whenInMillis = (long) (consumer.position() + timestamp / 1000.0 * VoiceChat.format.getFrameRate());
+    	
+    	EntityPlayer otherPlayer = null;
+    	Minecraft mc = Minecraft.getMinecraft();
+    	for (int i = 0; i < mc.theWorld.playerEntities.size(); i++) {
+			if(((EntityPlayer)mc.theWorld.playerEntities.get(i)).getCommandSenderName().equals(this.player))
+				otherPlayer = (EntityPlayer)mc.theWorld.playerEntities.get(i);
+		}
+    	
+    	float volume = 1.0F;
+    	
+    	if(otherPlayer != null)
+    	{
+    		float distance = player.getDistanceToEntity(otherPlayer);
+    		volume = 1-distance/(float)VoiceChat.distance;
+    	}
+    	
+    	/*for (int i = 0; i < data.length; i++) {
+			data[i] *= volume;
+		}*/
+    	
+    	short[] shortarray = new short[data.length/2];
+    	ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(shortarray);
+    	
+    	for (int i = 0; i < shortarray.length; i++) {
+    		shortarray[i] *= volume;
+		}
+    	
+    	double frameDelay = timestamp / 1000.0 * VoiceChat.format.getFrameRate();
+    	
     	long time = 0;
-    	if(lastplayed.containsKey(player))
-    		time = lastplayed.get(player);
+    	long max = (long) (consumer.position()+(float)frameDelay*2);
+    	if(lastplayed.containsKey(this.player))
+    		time = (long) Math.max(consumer.position(), Math.min(lastplayed.get(this.player), max));
     	else
     		time = consumer.position();
     	
-    	//int test = VoiceChat.format.getFrameSize();
+    	//if(time == max)
+    		//System.out.println("Used max!");
     	
-    	long whenInMillis = (long) (time + timestamp / 1000.0 * VoiceChat.format.getFrameRate());
+    	//int test = VoiceChat.format.getFrameSize();
+    	//long whenInMillis = (long) (time);
+    	long whenInMillis = (long) (time + frameDelay);
     	//that would be the delay of "300ms"
     	// no that wont work
     	// if you do that youre mixing audio and network latency
@@ -147,12 +179,12 @@ public class AudioPacket extends CreativeCorePacket{
     	// do some logging
     	// i want to make sure this looks ok
     	
-    	System.out.println ("playing " + player.getCommandSenderName());
-    	System.out.println ("recorded at = " + timestamp);
+    	//System.out.println ("playing " + player.getCommandSenderName());
+    	/*System.out.println ("recorded at = " + timestamp);
     	System.out.println ("received at = " + System.currentTimeMillis());
     	System.out.println ("consumer at = " + consumer.position());
     	System.out.println ("playback at = " + whenInMillis);
-    	System.out.println ("engine started at = " + (AudioConsumer.STARTED_AT/1000));
+    	System.out.println ("engine started at = " + (AudioConsumer.STARTED_AT/1000));*/
     	
     	
     	try
@@ -171,7 +203,7 @@ public class AudioPacket extends CreativeCorePacket{
     
     public void executeServer(EntityPlayer player)
 	{
-    	playAudioAt(player, data, length, timestamp);
+    	playAudioAt(player, this.player, data, length, timestamp);
     	ArrayList<Integer> frequenzes = VoiceChat.getFrequenzes(player);
     	if(frequenzes.size() > 0)
     	{
@@ -183,7 +215,7 @@ public class AudioPacket extends CreativeCorePacket{
     			{
     				if(checkIfLoud(VoiceChat.getItemStacks(newplayer, frequenzes)))
     				{
-    					playAudioAt(newplayer, data, length, timestamp);
+    					playAudioAt(newplayer, this.player, data, length, timestamp);
     				}else{
     					// whats this? test stuff ?
     					PacketHandler.sendPacketToPlayer(this, (EntityPlayerMP) newplayer);
@@ -202,7 +234,7 @@ public class AudioPacket extends CreativeCorePacket{
     	return false;
     }
     
-    public static void playAudioAt(EntityPlayer Audioplayer, byte[] data, int length, long timestamp)
+    public static void playAudioAt(EntityPlayer Audioplayer, String playerName, byte[] data, int length, long timestamp)
     {
     	List players = Audioplayer.worldObj.playerEntities;
 		for(int zahl = 0; zahl < players.size(); zahl++)
@@ -210,7 +242,7 @@ public class AudioPacket extends CreativeCorePacket{
 			EntityPlayer player = (EntityPlayer) players.get(zahl);
 			if(!player.getCommandSenderName().equals(Audioplayer.getCommandSenderName()) && VoiceChat.isInRange((int)Audioplayer.posX, (int)Audioplayer.posY, (int)Audioplayer.posZ, player))
 			{
-				PacketHandler.sendPacketToPlayer(new AudioPacket(data, length, player.getCommandSenderName(), timestamp), (EntityPlayerMP) player);
+				PacketHandler.sendPacketToPlayer(new AudioPacket(data, length, playerName, timestamp), (EntityPlayerMP) player);
 			}
 		}
     }

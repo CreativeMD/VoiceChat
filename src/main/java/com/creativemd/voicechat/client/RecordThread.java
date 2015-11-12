@@ -43,7 +43,7 @@ public class RecordThread extends Thread{
 			long now = System.currentTimeMillis();
 			int numFramesRead = numBytesRead/line.getFormat().getFrameSize();
 			double numSecondsRead = numFramesRead/line.getFormat().getFrameRate();
-			System.out.println("recorded " + numFramesRead + " frames = " + numSecondsRead + " seconds at " + (now-last));
+			//System.out.println("recorded " + numFramesRead + " frames = " + numSecondsRead + " seconds at " + (now-last));
 			PacketHandler.sendPacketToServer(new AudioPacket(data, numBytesRead, mc.thePlayer.getCommandSenderName(), (now-last)));
 			last = now;
 			//System.out.println("Sending sound data");
