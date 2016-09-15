@@ -1,57 +1,86 @@
 package com.creativemd.voicechat.client;
 
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.DataLine;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.SourceDataLine;
 import javax.sound.sampled.TargetDataLine;
 
-import net.minecraft.client.Minecraft;
-
 import com.creativemd.creativecore.common.packet.PacketHandler;
-import com.creativemd.voicechat.core.VoiceChat;
 import com.creativemd.voicechat.packets.AudioPacket;
 
-import cpw.mods.fml.relauncher.Side;
-import cpw.mods.fml.relauncher.SideOnly;
+import net.minecraft.client.Minecraft;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 @SideOnly(Side.CLIENT)
 public class RecordThread extends Thread{
 	
-	public Minecraft mc;
-	@SideOnly(Side.CLIENT)
-	public static TargetDataLine line;
+	public boolean active;
+	public static Minecraft mc = Minecraft.getMinecraft();
+	public TargetDataLine line;
 	
 	public RecordThread()
 	{
-		mc = Minecraft.getMinecraft();
 		System.out.println("Create recording Thread");
+		active = true;
+		start();
 	}
 	
 	@Override
 	public void run()
 	{
 		long last = 0;
-		while(mc.theWorld != null && !mc.isSingleplayer())
+		while(active)// && !mc.isSingleplayer())
 		{
-			if(!line.isActive())
-				line.start();
-			if(last == 0)
-				last = System.currentTimeMillis();
-			byte[] data = new byte[line.getBufferSize()];
-			int numBytesRead =  line.read(data, 0, data.length);
-			long now = System.currentTimeMillis();
-			int numFramesRead = numBytesRead/line.getFormat().getFrameSize();
-			double numSecondsRead = numFramesRead/line.getFormat().getFrameRate();
-			//System.out.println("recorded " + numFramesRead + " frames = " + numSecondsRead + " seconds at " + (now-last));
-			PacketHandler.sendPacketToServer(new AudioPacket(data, numBytesRead, mc.thePlayer.getCommandSenderName(), (now-last)));
-			last = now;
-			//System.out.println("Sending sound data");
-			/*try {
-				sleep(VoiceChat.delay);
+			if(mc.theWorld != null)
+			{
+				try{
+					if(!line.isActive())
+						line.start();
+					//if(last == 0)
+						//last = System.currentTimeMillis();
+					//long last = System.currentTimeMillis();
+					byte[] data = new byte[line.getBufferSize()];
+					int numBytesRead =  line.read(data, 0, data.length);
+					//long now = System.currentTimeMillis();
+					//int numFramesRead = numBytesRead/line.getFormat().getFrameSize();
+					//double numSecondsRead = numFramesRead/line.getFormat().getFrameRate();
+					//System.out.println("recorded " + numFramesRead + " frames = " + numSecondsRead + " seconds at " + (now-last));
+					if(mc.thePlayer != null && mc.theWorld != null) //&& !mc.isSingleplayer())
+					{
+						try{
+							//PacketHandler.sendPacketToServer(new AudioPacket(data/*, numBytesRead*/, mc.thePlayer.getName()/*, (now-last)*/));
+							mc.addScheduledTask(new Runnable() {
+								
+								@Override
+								public void run() {
+									new AudioPacket(data/*, numBytesRead*/, mc.thePlayer.getName()).executeClient(mc.thePlayer);
+									
+								}
+							});
+							/*long timeBetween = System.currentTimeMillis();
+							
+							System.out.println("time between:" + (System.currentTimeMillis()-timeBetween));*/
+						}catch(Exception e){
+							e.printStackTrace();
+						}
+					}
+					
+					//QueThread.bits.add(data);
+					//last = now;
+					//System.out.println("Sending sound data");
+					/*try {
+						sleep(VoiceChat.delay);
+					} catch (InterruptedException e) {
+					}*/
+				}catch(Exception e){
+					e.printStackTrace();
+				}
+			}
+			try {
+				sleep(1);
 			} catch (InterruptedException e) {
-			}*/
+				e.printStackTrace();
+			}
 		}
+		System.out.println("Closing recording Thread");
 	}
 
 }

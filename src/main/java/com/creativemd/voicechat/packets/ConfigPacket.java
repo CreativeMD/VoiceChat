@@ -1,20 +1,11 @@
 package com.creativemd.voicechat.packets;
 
-import java.util.Iterator;
-import java.util.List;
-
-import javax.sound.sampled.AudioFormat;
-
 import com.creativemd.creativecore.common.packet.CreativeCorePacket;
-import com.creativemd.voicechat.client.PlayThread;
-import com.creativemd.voicechat.client.RecordThread;
 import com.creativemd.voicechat.core.VoiceChat;
 
 import io.netty.buffer.ByteBuf;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.util.ChatComponentTranslation;
-import net.minecraft.util.ChatStyle;
-import net.minecraft.util.IChatComponent;
+import net.minecraft.util.text.TextComponentTranslation;
 
 public class ConfigPacket extends CreativeCorePacket{
 	
@@ -53,20 +44,9 @@ public class ConfigPacket extends CreativeCorePacket{
 		VoiceChat.distance = range;
 		VoiceChat.sampleRate = sampleRate;
 		VoiceChat.delay = delay;
-		player.addChatComponentMessage(new ChatComponentTranslation("Recieved Voice Chat config"));
+		player.addChatComponentMessage(new TextComponentTranslation("Recieved Voice Chat config"));
 		
-		VoiceChat.format = VoiceChat.refreshAudioFormat();
-		
-		if(VoiceChat.thread != null && VoiceChat.thread.isAlive())
-		{
-			VoiceChat.thread.interrupt();
-		}
-		
-		VoiceChat.thread = new RecordThread();
-		
-		//VoiceChat.refreshAudioFormat();
-		
-		VoiceChat.thread.start();
+		VoiceChat.refreshAudioFormat();
 	}
 
 	@Override

@@ -22,11 +22,11 @@ public class AudioConsumer {
 
 	public static long STARTED_AT; // hope thread safety wont cause problems
 	// otherwise make it a atomiclong but that''s probabl,y overkill
-	public static final int CHANNELS = VoiceChat.format.getChannels();
-	public static final int SAMPLE_RATE = (int) VoiceChat.format
+	public static int CHANNELS = VoiceChat.format.getChannels();
+	public static int SAMPLE_RATE = (int) VoiceChat.format
 			.getSampleRate();
-	public static final int NUM_PRODUCERS = 1;
-	public static final int BUFFER_SIZE_FRAMES = (int) (VoiceChat.format
+	public static int NUM_PRODUCERS = 1;
+	public static int BUFFER_SIZE_FRAMES = (int) (VoiceChat.format
 			.getSampleRate() / 4);
 
 	// audio block with "when to play" tag
@@ -61,6 +61,12 @@ public class AudioConsumer {
 
 	public void start() {
 		thread.start();
+	}
+	
+	public void close()
+	{
+		thread.interrupt();
+		stop();
 	}
 
 	public void stop() {

@@ -1,27 +1,5 @@
 package com.creativemd.voicechat.client;
 
-import java.io.ByteArrayOutputStream;
-import java.util.List;
-import java.util.Set;
-
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.DataLine;
-import javax.sound.sampled.FloatControl;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.SourceDataLine;
-import javax.sound.sampled.TargetDataLine;
-
-import org.lwjgl.opengl.GL11;
-
-import com.google.common.collect.ImmutableSet;
-
-import cpw.mods.fml.client.FMLClientHandler;
-import cpw.mods.fml.client.IModGuiFactory;
-import cpw.mods.fml.client.FMLConfigGuiFactory.FMLConfigGuiScreen;
-import cpw.mods.fml.client.IModGuiFactory.RuntimeOptionCategoryElement;
-import cpw.mods.fml.client.IModGuiFactory.RuntimeOptionGuiHandler;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.resources.I18n;

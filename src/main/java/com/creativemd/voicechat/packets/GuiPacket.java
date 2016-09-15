@@ -3,9 +3,9 @@ package com.creativemd.voicechat.packets;
 import com.creativemd.creativecore.common.packet.CreativeCorePacket;
 import com.creativemd.voicechat.client.GuiVoiceConfig;
 
-import cpw.mods.fml.common.FMLCommonHandler;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraftforge.fml.common.FMLCommonHandler;
 
 public class GuiPacket extends CreativeCorePacket{
 

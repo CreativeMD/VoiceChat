@@ -1,45 +1,37 @@
 package com.creativemd.voicechat.packets;
 
-import io.netty.buffer.ByteBuf;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.ShortBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
-
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.Line;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.Mixer;
-
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.audio.SoundHandler;
-import net.minecraft.client.audio.SoundManager;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.item.ItemStack;
-import paulscode.sound.SoundSystem;
 
 import com.creativemd.creativecore.common.packet.CreativeCorePacket;
 import com.creativemd.creativecore.common.packet.PacketHandler;
 import com.creativemd.voicechat.client.AudioConsumer;
 import com.creativemd.voicechat.core.ItemTalkie;
 import com.creativemd.voicechat.core.VoiceChat;
-import com.creativemd.voicechat.core.VoiceChatTransformer;
-import cpw.mods.fml.common.network.ByteBufUtils;
-import cpw.mods.fml.relauncher.Side;
-import cpw.mods.fml.relauncher.SideOnly;
+
+import io.netty.buffer.ByteBuf;
+import net.minecraft.client.Minecraft;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.item.ItemStack;
+import net.minecraftforge.fml.common.network.ByteBufUtils;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 public class AudioPacket extends CreativeCorePacket{
 	
 	public byte[] data = null;
-	public int length = 0;
+	//public int length = 0;
 	public String player;
-	public long timestamp = 0;
+	//public long timestamp = 0;
+	public boolean isBoundToPlayer = true;
+	public int x;
+	public int y;
+	public int z;
+	public float noise;
 	
 	public AudioPacket()
 	{
@@ -51,31 +43,56 @@ public class AudioPacket extends CreativeCorePacket{
 		
 	}*/
 	
-	public AudioPacket(byte[] data, int length, String player, long timestamp)
+	public AudioPacket(byte[] data/*, int length*/, String player, /*long timestamp,*/ int x, int y, int z, float noise)
 	{
 		this.data = data;
-		this.length = length;
+		//this.length = length;
 		this.player = player;
-		this.timestamp = timestamp;
+		//this.timestamp = timestamp;
+		this.x = x;
+		this.y = y;
+		this.z = z;
+		this.noise = noise;
+	}
+	
+	public AudioPacket(byte[] data/*, int length*/, String player/*, long timestamp*/)
+	{
+		this(data/*, length*/, player/*, timestamp*/, 0, 0, 0, 0);
+		this.isBoundToPlayer = false;
 	}
 	
 	public void readBytes(ByteBuf bytes)
 	{
-		timestamp = bytes.readLong();
+		//timestamp = bytes.readLong();
 		data = new byte[bytes.readInt()];
 		bytes.readBytes(data);
-		length = bytes.readInt();// wrong order
+		//length = bytes.readInt();// wrong order
 		player = ByteBufUtils.readUTF8String(bytes);
-		
+		if(bytes.readBoolean())
+		{
+			isBoundToPlayer = false;
+			x = bytes.readInt();
+			y = bytes.readInt();
+			z = bytes.readInt();
+			noise = bytes.readFloat();
+		}
 	}
 	
     public void writeBytes(ByteBuf bytes)
 	{
-    	bytes.writeLong(timestamp);
+    	//bytes.writeLong(timestamp);
     	bytes.writeInt(data.length);
     	bytes.writeBytes(data);
-		bytes.writeInt(length);
+		//bytes.writeInt(length);
 		ByteBufUtils.writeUTF8String(bytes, player);
+		bytes.writeBoolean(isBoundToPlayer);
+		if(isBoundToPlayer)
+		{
+			bytes.writeInt(x);
+			bytes.writeInt(y);
+			bytes.writeInt(z);
+			bytes.writeFloat(noise);
+		}
 	}
     
     public static boolean loaded = false;
@@ -86,44 +103,11 @@ public class AudioPacket extends CreativeCorePacket{
     public static HashMap<String, Long> lastplayed = new HashMap<String, Long>(); //This is the list containg a player as key and the timestamp as value
     
     public void executeClient(EntityPlayer player)
-	{
-    	if(consumer == null)
-    	{
-    		
-    		consumer = new AudioConsumer();
-    		consumer.start();
-    	}
-    	/*data = new byte[data.length];
-    	ThreadLocalRandom rand = ThreadLocalRandom.current();
-        for(int i = 0; i < data.length; i++)
-        	data[i] = (byte)((rand.nextDouble()-0.5) * Byte.MAX_VALUE);*/
-    	
-    	//short[] shortarray = new short[data.length/VoiceChat.format.getFrameSize()]; //<-- Is this data.length/2 ok? don't think so, was just a random idea
-    	
-    	
-    	/*Noise:
-    	shortarray = new short[8000];
-    	ThreadLocalRandom rand = ThreadLocalRandom.current();
-        for(int i = 0; i < 8000; i++)
-        	shortarray[i] = (short)(rand.nextDouble() * Short.MAX_VALUE*0.2);*/
-        
-    	// here we go compensate for network delay etc
-    	// since if you send at 12 o clock exactly
-    	// you will receive a bit later
-    	// lets say delay everything by 300 millis
-    	// you can finetune later
-    	
-    	// first we need to know how "late" is consumer position 0 relative to timestamp
-    	// hmz lemme think
-    	// now need to convert timestamp to consumer position
-    	// plus delay
-    	//Old: long whenInMillis = timestamp - AudioConsumer.STARTED_AT + 500; //wait a second couldn't we just do this?
-    	//long whenInMillis = (long) (consumer.position() + timestamp / 1000.0 * VoiceChat.format.getFrameRate());
-    	
+	{    	
     	EntityPlayer otherPlayer = null;
     	Minecraft mc = Minecraft.getMinecraft();
     	for (int i = 0; i < mc.theWorld.playerEntities.size(); i++) {
-			if(((EntityPlayer)mc.theWorld.playerEntities.get(i)).getCommandSenderName().equals(this.player))
+			if(((EntityPlayer)mc.theWorld.playerEntities.get(i)).getName().equals(this.player))
 				otherPlayer = (EntityPlayer)mc.theWorld.playerEntities.get(i);
 		}
     	
@@ -131,36 +115,45 @@ public class AudioPacket extends CreativeCorePacket{
     	
     	if(otherPlayer != null)
     	{
-    		float distance = player.getDistanceToEntity(otherPlayer);
+    		float distance = 0;
+    		if(isBoundToPlayer)
+    			distance = player.getDistanceToEntity(otherPlayer);
+    		else
+    			player.getDistance(x, y, z);
     		volume = 1-distance/(float)VoiceChat.distance;
     	}
     	
-    	/*for (int i = 0; i < data.length; i++) {
-			data[i] *= volume;
-		}*/
-    	
     	short[] shortarray = new short[data.length/2];
     	ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(shortarray);
+    	
+    	if(noise > 0)
+    	{
+    		for (int i = 0; i < shortarray.length; i++) {
+        		shortarray[i] += Math.random()*Short.MAX_VALUE*noise;
+    		}
+    	}
     	
     	for (int i = 0; i < shortarray.length; i++) {
     		shortarray[i] *= volume;
 		}
     	
-    	double frameDelay = timestamp / 1000.0 * VoiceChat.format.getFrameRate();
+    	double millisInPacket = data.length / VoiceChat.format.getFrameSize() * 1000.0 / VoiceChat.format.getSampleRate();
+    	//millisInPacket = 100000;
     	
     	long time = 0;
-    	long max = (long) (consumer.position()+(float)frameDelay*2);
+    	long max = (long) (consumer.position()+(float)millisInPacket);
     	if(lastplayed.containsKey(this.player))
-    		time = (long) Math.max(consumer.position(), Math.min(lastplayed.get(this.player), max));
+    		time = (long) Math.max(consumer.position()+4000, Math.min(lastplayed.get(this.player), max));
     	else
-    		time = consumer.position();
+    		time = consumer.position()+4000;
     	
     	//if(time == max)
     		//System.out.println("Used max!");
     	
     	//int test = VoiceChat.format.getFrameSize();
     	//long whenInMillis = (long) (time);
-    	long whenInMillis = (long) (time + frameDelay);
+    	long whenInMillis = (long) (time);
+    	//long whenInMillis = (long) (time + frameDelay);
     	//that would be the delay of "300ms"
     	// no that wont work
     	// if you do that youre mixing audio and network latency
@@ -186,16 +179,25 @@ public class AudioPacket extends CreativeCorePacket{
     	System.out.println ("playback at = " + whenInMillis);
     	System.out.println ("engine started at = " + (AudioConsumer.STARTED_AT/1000));*/
     	
-    	
+    	[12:26:02 AM] Sjoerd van Kreel: plenty to choose from
+    	[12:26:12 AM] Sjoerd van Kreel: K-NN being one of the simplest
+    	[12:26:27 AM] Sjoerd van Kreel: just set each sample to the avg of it's K nearest neighbours
+    	[12:26:27 AM] Sjoerd van Kreel: eg
+    	[12:26:40 AM] Sjoerd van Kreel: seq is 0 1 2 3 2 1
+    	[12:26:43 AM] Sjoerd van Kreel: use 2-NN
+    	[12:27:40 AM] Sjoerd van Kreel: becomes (undef) (0 + 1 + 2) /3 (1 + 2 + 3) / 3 ( 2 + 3 + 2 ) / 3 (3 + 2 + 1) / 3 (undef)
+    	[12:28:08 AM] Sjoerd van Kreel: very simple, but will definitively cut out the high frequencies
+    	[12:28:18 AM] Sjoerd van Kreel: more K = more filtering
     	try
-		{
+    	{
 			consumer.mix(whenInMillis, shortarray); // Is this line right? i'm the consumer.position()
-			//System.out.println("Playing");
+			System.out.println("Playing sound with " + (whenInMillis - consumer.position()) + " offset; framedelay=" + millisInPacket + ";"); // length=" + length + ";");
+			
 		}catch(Exception e){
 			e.printStackTrace();
 		}
     	
-    	lastplayed.put(this.player, whenInMillis);
+    	lastplayed.put(this.player, whenInMillis + (long)millisInPacket);
     	
 	}
 	
@@ -203,8 +205,8 @@ public class AudioPacket extends CreativeCorePacket{
     
     public void executeServer(EntityPlayer player)
 	{
-    	playAudioAt(player, this.player, data, length, timestamp);
-    	ArrayList<Integer> frequenzes = VoiceChat.getFrequenzes(player);
+    	playAudioAt(player, this.player, data/*, length, timestamp*/);
+    	/*ArrayList<Integer> frequenzes = VoiceChat.getFrequenzes(player);
     	if(frequenzes.size() > 0)
     	{
     		List players = player.worldObj.playerEntities;
@@ -223,7 +225,7 @@ public class AudioPacket extends CreativeCorePacket{
     				}
     			}
     		}
-    	}
+    	}*/
 	}
     
     public static boolean checkIfLoud(ArrayList<ItemStack> stacks)
@@ -234,15 +236,20 @@ public class AudioPacket extends CreativeCorePacket{
     	return false;
     }
     
-    public static void playAudioAt(EntityPlayer Audioplayer, String playerName, byte[] data, int length, long timestamp)
+    public static void playAudioAt(EntityPlayer Audioplayer, String playerName, byte[] data/*, int length, long timestamp*/)
     {
+    	ArrayList<Integer> frequenzes = ItemTalkie.getActiveFrequenzes(Audioplayer);
     	List players = Audioplayer.worldObj.playerEntities;
 		for(int zahl = 0; zahl < players.size(); zahl++)
 		{
 			EntityPlayer player = (EntityPlayer) players.get(zahl);
-			if(!player.getCommandSenderName().equals(Audioplayer.getCommandSenderName()) && VoiceChat.isInRange((int)Audioplayer.posX, (int)Audioplayer.posY, (int)Audioplayer.posZ, player))
+			if(player != Audioplayer)
 			{
-				PacketHandler.sendPacketToPlayer(new AudioPacket(data, length, playerName, timestamp), (EntityPlayerMP) player);
+				if(VoiceChat.isInRange((int)Audioplayer.posX, (int)Audioplayer.posY, (int)Audioplayer.posZ, player))
+					PacketHandler.sendPacketToPlayer(new AudioPacket(data/*, length*/, playerName/*, timestamp*/), (EntityPlayerMP) player);
+				if(frequenzes.size() > 0 && ItemTalkie.canReceivePlayerFrequenzes(player, frequenzes))
+					PacketHandler.sendPacketToPlayer(new AudioPacket(data/*, length*/, "talkie" + frequenzes.get(0)/*, timestamp*/, (int)player.posX, (int)player.posY, (int)player.posZ, 0.01F), (EntityPlayerMP) player);
+				//System.out.println("Sending sound to player: " + player.getCommandSenderName());
 			}
 		}
     }

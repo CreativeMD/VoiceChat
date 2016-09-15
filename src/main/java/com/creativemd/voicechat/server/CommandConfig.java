@@ -5,8 +5,6 @@ import java.util.List;
 
 import net.minecraft.command.ICommand;
 import net.minecraft.command.ICommandSender;
-import net.minecraft.server.MinecraftServer;
-import cpw.mods.fml.common.network.FMLIndexedMessageToMessageCodec;
 
 public class CommandConfig implements ICommand{
 	

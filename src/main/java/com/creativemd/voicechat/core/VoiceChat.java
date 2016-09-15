@@ -1,58 +1,43 @@
 package com.creativemd.voicechat.core;
 
-import java.io.ByteArrayOutputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.EnumMap;
-
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
 import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.SourceDataLine;
 import javax.sound.sampled.TargetDataLine;
 
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.server.MinecraftServer;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.common.config.Configuration;
-import net.minecraftforge.event.entity.item.ItemTossEvent;
-
 import com.creativemd.creativecore.common.packet.CreativeCorePacket;
-import com.creativemd.voicechat.client.PlayThread;
+import com.creativemd.voicechat.client.AudioConsumer;
 import com.creativemd.voicechat.client.RecordThread;
+import com.creativemd.voicechat.config.ConfigLoader;
 import com.creativemd.voicechat.packets.AudioPacket;
 import com.creativemd.voicechat.packets.ConfigPacket;
 import com.creativemd.voicechat.packets.GuiPacket;
-import com.google.common.eventbus.EventBus;
-import com.google.common.eventbus.Subscribe;
 
-import cpw.mods.fml.common.DummyModContainer;
-import cpw.mods.fml.common.FMLCommonHandler;
-import cpw.mods.fml.common.LoadController;
-import cpw.mods.fml.common.Mod;
-import cpw.mods.fml.common.ModMetadata;
-import cpw.mods.fml.common.Mod.EventHandler;
-import cpw.mods.fml.common.Mod.Instance;
-import cpw.mods.fml.common.event.FMLConstructionEvent;
-import cpw.mods.fml.common.event.FMLInitializationEvent;
-import cpw.mods.fml.common.event.FMLPostInitializationEvent;
-import cpw.mods.fml.common.event.FMLPreInitializationEvent;
-import cpw.mods.fml.common.network.FMLEmbeddedChannel;
-import cpw.mods.fml.common.network.NetworkRegistry;
-import cpw.mods.fml.common.registry.GameRegistry;
-import cpw.mods.fml.relauncher.Side;
-import cpw.mods.fml.relauncher.SideOnly;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.item.Item;
+import net.minecraft.server.MinecraftServer;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.common.config.Configuration;
+import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraftforge.fml.common.Loader;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.Mod.EventHandler;
+import net.minecraftforge.fml.common.event.FMLInitializationEvent;
+import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.registry.GameRegistry;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
-public class VoiceChat extends DummyModContainer{
+@Mod(modid = VoiceChat.modid, version = VoiceChat.version, name = "VoiceChat")
+public class VoiceChat {//extends DummyModContainer{
 	
 	public static final String modid = "voicechat"; 
+	public static final String version = "0.3";
 	
 	public static Configuration config;
 	
-	public VoiceChat() {
+	/*public VoiceChat() {
 		super(new ModMetadata());
 		ModMetadata meta = getMetadata();
 		meta.modId = modid;
@@ -76,7 +61,7 @@ public class VoiceChat extends DummyModContainer{
 	@Subscribe
 	public void modConstruction(FMLConstructionEvent evt){
 
-	}
+	}*/
 	
 	public static void load()
 	{
@@ -89,7 +74,7 @@ public class VoiceChat extends DummyModContainer{
 	
 	public static void save()
 	{
-		if(MinecraftServer.getServer() != null && !MinecraftServer.getServer().isSinglePlayer())
+		if(FMLCommonHandler.instance().getMinecraftServerInstance() != null && !FMLCommonHandler.instance().getMinecraftServerInstance().isSinglePlayer())
 		{
 			config.load();
 			config.get("Voice", "range", distance).set(distance);
@@ -104,24 +89,63 @@ public class VoiceChat extends DummyModContainer{
 	
 	/** 8000,11025,16000,22050,44100,48000**/
 	public static float sampleRate = 16000.0F;
-	public static int delay = 50; //10ms
+	public static int delay = 4000; 
 	public static int distance = 50; //50m
 	
 	public static AudioFormat format;
 	
-	public static AudioFormat refreshAudioFormat()
+	public static void refreshAudioFormat()
 	{
 		int sampleSizeInBits = 16; //8,16
 		int channels = 2; //1,2
 		boolean signed = true; //true,false
 		boolean bigEndian = false; //true,false
-		return new AudioFormat(sampleRate, sampleSizeInBits, channels, signed, bigEndian);
+		VoiceChat.format = new AudioFormat(sampleRate, sampleSizeInBits, channels, signed, bigEndian);
+		
+		AudioConsumer.CHANNELS = VoiceChat.format.getChannels();
+		AudioConsumer.SAMPLE_RATE = (int) VoiceChat.format.getSampleRate();
+		AudioConsumer.NUM_PRODUCERS = 1;
+		AudioConsumer.BUFFER_SIZE_FRAMES = (int) (VoiceChat.format.getSampleRate() / 4);
+		
+		if(AudioPacket.consumer != null)
+		{
+			AudioPacket.consumer.close();
+		}
+			
+		AudioPacket.consumer = new AudioConsumer();
+		AudioPacket.consumer.start();
+		
+		if(VoiceChat.thread != null)
+		{
+			VoiceChat.thread.active = false;
+			VoiceChat.thread.interrupt();
+			VoiceChat.thread.line.close();
+		}
+		
+		VoiceChat.thread = new RecordThread();
+		
+		//Initializate Microphone
+		DataLine.Info info = new DataLine.Info(TargetDataLine.class, VoiceChat.format);
+		try { 
+			VoiceChat.thread.line = (TargetDataLine) AudioSystem.getLine(info);     
+			VoiceChat.thread.line.open(VoiceChat.format); 
+			/*float bits = VoiceChat.format.getSampleSizeInBits();
+			bits = VoiceChat.format.getFrameRate();
+			bits = VoiceChat.format.getSampleRate();
+			bits = VoiceChat.format.getFrameSize();
+			//RecordThread.line.
+			RecordThread.line.open(VoiceChat.format, VoiceChat.format.getSampleSizeInBits()); */
+		} catch (LineUnavailableException ex) { 
+			ex.printStackTrace();
+		}
+		
+		//VoiceChat.thread.start();
 	}
 	
-	public static EnumMap<Side, FMLEmbeddedChannel> channels;
+	//public static EnumMap<Side, FMLEmbeddedChannel> channels;
 	public static Item talkie;
 	
-	@Subscribe
+	@EventHandler
 	public void init(FMLInitializationEvent evt) {
 		CreativeCorePacket.registerPacket(AudioPacket.class, "VCaudio");
 		CreativeCorePacket.registerPacket(ConfigPacket.class, "VCconfig");
@@ -130,6 +154,10 @@ public class VoiceChat extends DummyModContainer{
 		talkie = new ItemTalkie().setUnlocalizedName("walkietalkie");
 		GameRegistry.registerItem(talkie, talkie.getUnlocalizedName());
 		FMLCommonHandler.instance().bus().register(new EventHandlerBoth());
+		
+		if(Loader.isModLoaded("ingameconfigmanager"))
+			ConfigLoader.startConfig();
+		
 		if(FMLCommonHandler.instance().getEffectiveSide() == Side.CLIENT)
 			loadClient();
 	}
@@ -153,33 +181,26 @@ public class VoiceChat extends DummyModContainer{
 	@SideOnly(Side.CLIENT)
 	public void loadClient()
 	{
-		format = refreshAudioFormat();
-		//Initializate Microphone
-		DataLine.Info info = new DataLine.Info(TargetDataLine.class, VoiceChat.format);
-		try { 
-			RecordThread.line = (TargetDataLine) AudioSystem.getLine(info);          
-			RecordThread.line.open(VoiceChat.format); 
-		} catch (LineUnavailableException ex) { 
-			ex.printStackTrace();
-		}
+		refreshAudioFormat();
 	}
 
-	@Subscribe
+	@EventHandler
 	public void preInit(FMLPreInitializationEvent evt) {
 		config = new Configuration(evt.getSuggestedConfigurationFile());
+		load();
 	}
 
-	@Subscribe
+	/*@Subscribe
 	public void postInit(FMLPostInitializationEvent evt) {
 
-	}
+	}*/
 	
 	public static boolean isInRange(int X, int Y, int Z, EntityPlayer player)
 	{
 		return distance >= Math.sqrt(Math.pow(player.posX-X, 2) + Math.pow(player.posY-Y, 2) + Math.pow(player.posZ-Z, 2));
 	}
 	
-	public static ItemStack getItemStack(EntityPlayer player, int frequenz)
+	/*public static ItemStack getItemStack(EntityPlayer player, int frequenz)
 	{
 		ArrayList<Integer> frequenzes = new ArrayList<Integer>();
 		frequenzes.add(frequenz);
@@ -190,9 +211,9 @@ public class VoiceChat extends DummyModContainer{
 				hasFrequenzes(player, frequenzes))
 					return player.inventory.mainInventory[zahl];
 		return null;
-	}
+	}*/
 	
-	public static ArrayList<ItemStack> getItemStacks(EntityPlayer player, ArrayList<Integer> frequenzes)
+	/*public static ArrayList<ItemStack> getItemStacks(EntityPlayer player, ArrayList<Integer> frequenzes)
 	{
 		ArrayList<ItemStack> stacks = new ArrayList<ItemStack>();
 		for(int zahl = 0; zahl < frequenzes.size(); zahl++)
@@ -200,9 +221,9 @@ public class VoiceChat extends DummyModContainer{
 			stacks.add(getItemStack(player, frequenzes.get(zahl)));
 		}
 		return stacks;
-	}
+	}*/
 	
-	public static boolean hasFrequenzes(EntityPlayer player, ArrayList<Integer> frequenzes)
+	/*public static boolean hasFrequenzes(EntityPlayer player, ArrayList<Integer> frequenzes)
 	{
 		 ArrayList<Integer> newFrequnezes = getFrequenzes(player);
 		 for(int zahl = 0; zahl < frequenzes.size(); zahl++)
@@ -220,5 +241,5 @@ public class VoiceChat extends DummyModContainer{
 				ItemTalkie.isActive(player.inventory.mainInventory[zahl]))
 					frequenzes.add(ItemTalkie.getFrequenz(player.inventory.mainInventory[zahl]));
 		return frequenzes;
-	}
+	}*/
 }
